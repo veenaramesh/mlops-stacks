@@ -30,6 +30,10 @@ jobs:
           rm -rf cicd/template/.github cicd/template/.azure
           cd ../..
       - name: Run tests with pytest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+          DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
         run: |
-          export GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
           pytest tests --large -vv --black
