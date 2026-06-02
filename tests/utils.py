@@ -20,7 +20,7 @@ AZURE_DEFAULT_PARAMS = {
     "input_read_user_group": "users",
     "input_include_feature_store": "no",
     "input_include_mlflow_recipes": "no",
-    "input_include_models_in_unity_catalog": "no",
+    "input_include_models_in_unity_catalog": "yes",
     "input_schema_name": "schema_name",
     "input_unity_catalog_read_user_group": "account users",
     "input_inference_table_name": "dummy.schema.table",
@@ -63,17 +63,11 @@ def parametrize_by_project_generation_params(fn):
     @pytest.mark.parametrize(
         "setup_cicd_and_project,include_feature_store,include_mlflow_recipes,include_models_in_unity_catalog",
         [
-            ("CICD_and_Project", "no", "no", "no"),
             ("CICD_and_Project", "no", "no", "yes"),
-            ("CICD_and_Project", "no", "yes", "no"),
-            ("CICD_and_Project", "yes", "no", "no"),
             ("CICD_and_Project", "yes", "no", "yes"),
-            ("Project_Only", "no", "no", "no"),
             ("Project_Only", "no", "no", "yes"),
-            ("Project_Only", "no", "yes", "no"),
-            ("Project_Only", "yes", "no", "no"),
             ("Project_Only", "yes", "no", "yes"),
-            ("CICD_Only", "no", "no", "no"),
+            ("CICD_Only", "no", "no", "yes"),
         ],
     )
     @wraps(fn)
@@ -157,8 +151,6 @@ def generate(directory, databricks_cli, context):
     if context.get("input_cloud") == "aws":
         default_params = AWS_DEFAULT_PARAMS
     elif context.get("input_cloud") == "gcp":
-        if context.get("input_include_models_in_unity_catalog") == "yes":
-            return
         default_params = GCP_DEFAULT_PARAMS
     else:
         default_params = AZURE_DEFAULT_PARAMS

@@ -25,7 +25,7 @@ DEFAULT_PARAM_VALUES = {
     "input_read_user_group": "users",
     "input_include_feature_store": "no",
     "input_include_mlflow_recipes": "no",
-    "input_include_models_in_unity_catalog": "no",
+    "input_include_models_in_unity_catalog": "yes",
     "input_schema_name": "schema_name",
     "input_unity_catalog_read_user_group": "account users",
     "input_inference_table_name": "dummy.schema.table",
@@ -86,9 +86,6 @@ def assert_no_disallowed_strings_in_files(
 def test_no_template_strings_after_param_substitution(
     cloud, include_models_in_unity_catalog, generated_project_dir
 ):
-    if cloud == "gcp" and include_models_in_unity_catalog == "yes":
-        # Skip test for GCP with Unity Catalog
-        return
     assert_no_disallowed_strings_in_files(
         file_paths=[
             os.path.join(generated_project_dir, path)
@@ -129,9 +126,6 @@ def test_no_databricks_doc_strings_before_project_generation():
 @pytest.mark.large
 @parametrize_by_project_generation_params
 def test_markdown_links(cloud, include_models_in_unity_catalog, generated_project_dir):
-    if cloud == "gcp" and include_models_in_unity_catalog == "yes":
-        # Skip test for GCP with Unity Catalog
-        return
     markdown_checker_configs(generated_project_dir)
     subprocess.run(
         """
@@ -184,12 +178,8 @@ def test_generate_project_with_default_values(
     parent directory are excluded from this test as they covered in other tests. If this test fails
     due to an update of the default values, please do the following checks:
     - The default param value constants in this test are up to date.
-    - The default param values in the substitution logic in the pre_gen_project.py hook are up to date.
     - The default param values in the help strings in databricks_template_schema.json are up to date.
     """
-    if cloud == "gcp" and include_models_in_unity_catalog == "yes":
-        # Skip test for GCP with Unity Catalog
-        return
     context = {
         "input_project_name": TEST_PROJECT_NAME,
         "input_root_dir": TEST_PROJECT_NAME,
@@ -253,9 +243,6 @@ def test_generate_project_check_delta_output(
     """
     Asserts the behavior of Delta Table-related artifacts when generating MLOps Stacks.
     """
-    if cloud == "gcp" and include_models_in_unity_catalog == "yes":
-        # Skip test for GCP with Unity Catalog
-        return
     context = prepareContext(
         cloud,
         cicd_platform,
@@ -275,7 +262,6 @@ def test_generate_project_check_delta_output(
     )
     if (
         setup_cicd_and_project != "CICD_Only"
-        and include_mlflow_recipes == "no"
         and include_feature_store == "no"
     ):
         assert os.path.isfile(delta_notebook_path)
@@ -297,9 +283,6 @@ def test_generate_project_check_feature_store_output(
     """
     Asserts the behavior of feature store-related artifacts when generating MLOps Stacks.
     """
-    if cloud == "gcp" and include_models_in_unity_catalog == "yes":
-        # Skip test for GCP with Unity Catalog
-        return
     context = prepareContext(
         cloud,
         cicd_platform,
@@ -321,46 +304,6 @@ def test_generate_project_check_feature_store_output(
         assert os.path.isfile(fs_notebook_path)
     else:
         assert not os.path.isfile(fs_notebook_path)
-
-
-@parametrize_by_project_generation_params
-def test_generate_project_check_recipe_output(
-    tmpdir,
-    databricks_cli,
-    cloud,
-    cicd_platform,
-    setup_cicd_and_project,
-    include_feature_store,
-    include_mlflow_recipes,
-    include_models_in_unity_catalog,
-):
-    """
-    Asserts the behavior of MLflow Recipes-related artifacts when generating MLOps Stacks.
-    """
-    if cloud == "gcp" and include_models_in_unity_catalog == "yes":
-        # Skip test for GCP with Unity Catalog
-        return
-    context = prepareContext(
-        cloud,
-        cicd_platform,
-        setup_cicd_and_project,
-        include_feature_store,
-        include_mlflow_recipes,
-        include_models_in_unity_catalog,
-    )
-    generate(tmpdir, databricks_cli, context=context)
-    recipe_notebook_path = (
-        tmpdir
-        / TEST_PROJECT_NAME
-        / TEST_PROJECT_DIRECTORY
-        / "training"
-        / "notebooks"
-        / "TrainWithMLflowRecipes.py"
-    )
-    if setup_cicd_and_project != "CICD_Only" and include_mlflow_recipes == "yes":
-        assert os.path.isfile(recipe_notebook_path)
-    else:
-        assert not os.path.isfile(recipe_notebook_path)
 
 
 @pytest.mark.parametrize(
