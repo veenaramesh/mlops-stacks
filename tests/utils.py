@@ -133,9 +133,11 @@ def markdown_checker_configs(tmpdir):
             {"pattern": "https://adb-3214.67.azuredatabricks.net*"},
             {"pattern": "https://adb-345.89.azuredatabricks.net*"},
         ],
+        "retryOn429": True,
+        "retryCount": 3,
         "httpHeaders": [
             {
-                "urls": ["https://docs.github.com/"],
+                "urls": ["https://docs.github.com/", "https://github.com/"],
                 "headers": {"Accept-Encoding": "zstd, br, gzip, deflate"},
             },
         ],
