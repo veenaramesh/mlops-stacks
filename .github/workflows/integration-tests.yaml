@@ -1,0 +1,119 @@
+name: Integration Tests
+on:
+  workflow_dispatch:
+    inputs:
+      test_feature_store:
+        description: 'Also test feature store variant'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+env:
+  DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+  DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+  DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+  TEST_CATALOG: users
+  TEST_SCHEMA: veena_ramesh
+
+jobs:
+  generate-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: default
+            include_feature_store: "no"
+          - name: feature-store
+            include_feature_store: "yes"
+    steps:
+      - name: Skip feature store if not requested
+        if: matrix.include_feature_store == 'yes' && github.event.inputs.test_feature_store == 'false'
+        run: echo "SKIP=true" >> $GITHUB_ENV
+
+      - uses: actions/checkout@v4
+        if: env.SKIP != 'true'
+
+      - uses: actions/setup-python@v5
+        if: env.SKIP != 'true'
+        with:
+          python-version: '3.10'
+
+      - name: Install Databricks CLI
+        if: env.SKIP != 'true'
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
+
+      - name: Generate project from template
+        if: env.SKIP != 'true'
+        run: |
+          cat > /tmp/config.json << 'PARAMS'
+          {
+            "input_setup_cicd_and_project": "Project_Only",
+            "input_root_dir": "integration-test-project",
+            "input_project_name": "integration-test-project",
+            "input_cloud": "aws",
+            "input_include_feature_store": "${{ matrix.include_feature_store }}",
+            "input_include_mlflow_recipes": "no",
+            "input_include_models_in_unity_catalog": "yes",
+            "input_schema_name": "${{ env.TEST_SCHEMA }}",
+            "input_unity_catalog_read_user_group": "account users",
+            "input_inference_table_name": "${{ env.TEST_CATALOG }}.${{ env.TEST_SCHEMA }}.predictions"
+          }
+          PARAMS
+          databricks bundle init . --config-file /tmp/config.json --output-dir /tmp/generated
+
+      - name: Configure bundle targets
+        if: env.SKIP != 'true'
+        run: |
+          cd /tmp/generated/integration-test-project/integration_test_project
+          # Append a dev target pointing to our test workspace with the test catalog
+          cat >> databricks.yml << EOF
+
+          # Override dev target for integration testing
+            workspace:
+              host: ${DATABRICKS_HOST}
+          EOF
+          # Set the dev catalog to our test catalog
+          sed -i "s/catalog_name: dev/catalog_name: ${TEST_CATALOG}/" databricks.yml
+          echo "--- Final databricks.yml ---"
+          cat databricks.yml
+
+      - name: Validate bundle
+        if: env.SKIP != 'true'
+        run: |
+          cd /tmp/generated/integration-test-project/integration_test_project
+          databricks bundle validate -t dev
+
+      - name: Deploy bundle
+        if: env.SKIP != 'true'
+        run: |
+          cd /tmp/generated/integration-test-project/integration_test_project
+          databricks bundle deploy -t dev
+
+      - name: Run feature engineering workflow
+        if: env.SKIP != 'true' && matrix.include_feature_store == 'yes'
+        run: |
+          cd /tmp/generated/integration-test-project/integration_test_project
+          databricks bundle run write_feature_table_job -t dev
+
+      - name: Run model training workflow
+        if: env.SKIP != 'true'
+        run: |
+          cd /tmp/generated/integration-test-project/integration_test_project
+          databricks bundle run model_training_job -t dev
+
+      - name: Run batch inference workflow
+        if: env.SKIP != 'true'
+        run: |
+          cd /tmp/generated/integration-test-project/integration_test_project
+          databricks bundle run batch_inference_job -t dev
+
+      - name: Destroy bundle resources
+        if: always() && env.SKIP != 'true'
+        run: |
+          cd /tmp/generated/integration-test-project/integration_test_project
+          databricks bundle destroy -t dev --auto-approve || true
