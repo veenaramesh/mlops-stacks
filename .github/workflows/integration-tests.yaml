@@ -17,6 +17,8 @@ env:
   DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
   TEST_CATALOG: users
   TEST_SCHEMA: veena_ramesh
+  # Serverless SQL warehouse on the test workspace
+  SQL_WAREHOUSE_ID: 4b9b953939869799
 
 jobs:
   generate-and-test:
@@ -29,6 +31,8 @@ jobs:
             include_feature_store: "no"
           - name: feature-store
             include_feature_store: "yes"
+    env:
+      PROJECT_DIR: /tmp/generated/integration-test-project/integration_test_project
     steps:
       - name: Skip feature store if not requested
         if: matrix.include_feature_store == 'yes' && github.event.inputs.test_feature_store == 'false'
@@ -66,54 +70,60 @@ jobs:
           PARAMS
           databricks bundle init . --config-file /tmp/config.json --output-dir /tmp/generated
 
-      - name: Configure bundle targets
+      - name: Configure bundle for test workspace
         if: env.SKIP != 'true'
         run: |
-          cd /tmp/generated/integration-test-project/integration_test_project
-          # Append a dev target pointing to our test workspace with the test catalog
-          cat >> databricks.yml << EOF
-
-          # Override dev target for integration testing
-            workspace:
-              host: ${DATABRICKS_HOST}
-          EOF
-          # Set the dev catalog to our test catalog
-          sed -i "s/catalog_name: dev/catalog_name: ${TEST_CATALOG}/" databricks.yml
-          echo "--- Final databricks.yml ---"
+          cd $PROJECT_DIR
+          # Set workspace host and catalog for dev target
+          sed -i 's|      # TODO: add dev workspace URL|      # Integration test workspace|' databricks.yml
+          sed -i 's|      host:$|      host: '"$DATABRICKS_HOST"'|' databricks.yml
+          sed -i 's|catalog_name: dev|catalog_name: '"$TEST_CATALOG"'|' databricks.yml
+          # Point batch inference to our sample input table
+          sed -i 's|input_table_name: taxi_scoring_sample.*|input_table_name: '"$TEST_CATALOG"'.'"$TEST_SCHEMA"'.taxi_scoring_sample|' resources/batch-inference-workflow-resource.yml
+          echo "--- databricks.yml ---"
           cat databricks.yml
+
+      - name: Create sample input table for batch inference
+        if: env.SKIP != 'true'
+        run: |
+          databricks api post /api/2.0/sql/statements --json '{
+            "statement": "CREATE TABLE IF NOT EXISTS '"$TEST_CATALOG"'.'"$TEST_SCHEMA"'.taxi_scoring_sample AS SELECT * FROM delta.`dbfs:/databricks-datasets/nyctaxi-with-zipcodes/subsampled` LIMIT 100",
+            "warehouse_id": "'"$SQL_WAREHOUSE_ID"'",
+            "wait_timeout": "50s"
+          }'
 
       - name: Validate bundle
         if: env.SKIP != 'true'
         run: |
-          cd /tmp/generated/integration-test-project/integration_test_project
+          cd $PROJECT_DIR
           databricks bundle validate -t dev
 
       - name: Deploy bundle
         if: env.SKIP != 'true'
         run: |
-          cd /tmp/generated/integration-test-project/integration_test_project
+          cd $PROJECT_DIR
           databricks bundle deploy -t dev
 
       - name: Run feature engineering workflow
         if: env.SKIP != 'true' && matrix.include_feature_store == 'yes'
         run: |
-          cd /tmp/generated/integration-test-project/integration_test_project
+          cd $PROJECT_DIR
           databricks bundle run write_feature_table_job -t dev
 
       - name: Run model training workflow
         if: env.SKIP != 'true'
         run: |
-          cd /tmp/generated/integration-test-project/integration_test_project
+          cd $PROJECT_DIR
           databricks bundle run model_training_job -t dev
 
       - name: Run batch inference workflow
         if: env.SKIP != 'true'
         run: |
-          cd /tmp/generated/integration-test-project/integration_test_project
+          cd $PROJECT_DIR
           databricks bundle run batch_inference_job -t dev
 
       - name: Destroy bundle resources
         if: always() && env.SKIP != 'true'
         run: |
-          cd /tmp/generated/integration-test-project/integration_test_project
+          cd $PROJECT_DIR
           databricks bundle destroy -t dev --auto-approve || true
