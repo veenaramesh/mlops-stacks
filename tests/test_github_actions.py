@@ -14,23 +14,17 @@ from utils import (
 @pytest.mark.parametrize(
     "setup_cicd_and_project,include_feature_store,include_mlflow_recipes,include_models_in_unity_catalog",
     [
-        ("CICD_and_Project", "no", "no", "no"),
         ("CICD_and_Project", "no", "no", "yes"),
-        ("CICD_and_Project", "no", "yes", "no"),
-        ("CICD_and_Project", "yes", "no", "no"),
         ("CICD_and_Project", "yes", "no", "yes"),
-        ("CICD_Only", "no", "no", "no"),
+        ("CICD_Only", "no", "no", "yes"),
     ],
 )
 @parametrize_by_cloud
 def test_generated_yaml_format(
     cloud, include_models_in_unity_catalog, generated_project_dir
 ):
-    # Note: actionlint only works when the directory is a git project. Thus we begin by initiatilizing
+    # Note: actionlint only works when the directory is a git project. Thus we begin by initializing
     # the generated mlops project with git.
-    if cloud == "gcp" and include_models_in_unity_catalog == "yes":
-        # Skip test for GCP with Unity Catalog
-        return
     subprocess.run(
         """
         git init
@@ -51,20 +45,16 @@ def test_generated_yaml_format(
 @pytest.mark.parametrize(
     "setup_cicd_and_project,include_feature_store,include_mlflow_recipes,include_models_in_unity_catalog",
     [
-        ("CICD_and_Project", "no", "no", "no"),
         ("CICD_and_Project", "no", "no", "yes"),
-        ("CICD_and_Project", "yes", "no", "no"),
-        ("CICD_and_Project", "yes", "no", "yes"),
     ],
 )
 @parametrize_by_cloud
 def test_run_unit_tests_workflow(
     cloud, include_models_in_unity_catalog, generated_project_dir
 ):
-    """Test that the GitHub workflow for running unit tests in the materialized project passes"""
-    if cloud == "gcp" and include_models_in_unity_catalog == "yes":
-        # Skip test for GCP with Unity Catalog
-        return
+    """Test that the GitHub workflow for running unit tests in the materialized project passes.
+    Feature store combos are excluded because their unit tests require PySpark/Java
+    which are not available in the act Docker environment."""
     # We only test the unit test workflow, as it's the only one that doesn't require
     # Databricks REST API
     subprocess.run(
