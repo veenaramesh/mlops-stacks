@@ -120,12 +120,11 @@ import traceback
     get_recipe_name,
     get_recipe_root_path,
 ){{ end }}
-from mlflow.tracking.client import MlflowClient
+from mlflow import MlflowClient
 {{ if (eq .input_include_models_in_unity_catalog "no") }}
 client = MlflowClient()
 {{else}}
-client = MlflowClient(registry_uri="databricks-uc")
-mlflow.set_registry_uri('databricks-uc')
+client = MlflowClient()
 {{ end }}
 # set experiment
 experiment_name = dbutils.widgets.get("experiment_name")
