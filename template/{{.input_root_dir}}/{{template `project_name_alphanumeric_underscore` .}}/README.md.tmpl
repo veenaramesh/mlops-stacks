@@ -37,7 +37,7 @@ contained in the following files:
 │   │
 │   ├── databricks.yml          <- databricks.yml is the root bundle file for the ML project that can be loaded by databricks CLI bundles. It defines the bundle name, workspace URL and resource config component to be included.
 │   │
-{{- if and (eq .input_include_feature_store `no`) (eq .input_include_mlflow_recipes `no`) }}
+{{- if (eq .input_include_feature_store `no`) }}
 │   ├── training                <- Training folder contains Notebook that trains and registers the model.
 │   │
 │   ├── validation              <- Optional model validation step before deploying a model.
@@ -93,44 +93,6 @@ contained in the following files:
 │       ├── ml-artifacts-resource.yml                  <- ML resource config definition for model and experiment
 │       │
 │       ├── monitoring-resource.yml           <- ML resource config definition for quality monitoring workflow
-{{- else }}
-│   ├── training                <- Folder for model development via MLflow recipes.
-│   │   │
-│   │   ├── steps               <- MLflow recipe steps (Python modules) implementing ML pipeline logic, e.g. model training and evaluation. Most
-│   │   │                          development work happens here. See https://mlflow.org/docs/latest/recipes.html for details
-│   │   │
-│   │   ├── notebooks           <- Databricks notebook that runs the MLflow recipe, i.e. run the logic in `steps`. Used to
-│   │   │                          drive code execution on Databricks for CI/CD. In most cases, you do not need to modify
-│   │   │                          the notebook.
-│   │   │
-│   │   ├── recipe.yaml         <- The main recipe configuration file that declaratively defines the attributes and behavior
-│   │   │                          of each recipe step, such as the input dataset to use for training a model or the
-│   │   │                          performance criteria for promoting a model to production.
-│   │   │
-│   │   ├── profiles            <- Environment-specific (e.g. dev vs test vs prod) configurations for MLflow recipes execution.
-│   │
-│   │
-│   ├── validation              <- Optional model validation step before deploying a model.
-│   │
-│   ├── monitoring              <- Model monitoring, feature monitoring, etc.
-│   │
-│   ├── deployment              <- Model deployment and endpoint deployment.
-│   │   │
-│   │   ├── batch_inference     <- Batch inference code that will run as part of scheduled workflow.
-│   │   │
-│   │   ├── model_deployment    <- As part of CD workflow, promote model to Production stage in model registry.
-│   │
-│   ├── tests                   <- Unit tests for the ML project, including modules under `steps`.
-│   │
-│   ├── resources               <- ML resource (ML jobs, MLflow models) config definitions expressed as code, across dev/staging/prod/test.
-│       │
-│       ├── model-workflow-resource.yml                <- ML resource config definition for model training, validation, deployment workflow
-│       │
-│       ├── batch-inference-workflow-resource.yml      <- ML resource config definition for batch inference workflow
-│       │
-│       ├── ml-artifacts-resource.yml                  <- ML resource config definition for model and experiment
-│       │
-│       ├── monitoring-resource.yml           <- ML resource config definition for quality monitoring workflow
 {{- end }}
 ```
 
@@ -146,7 +108,7 @@ In each module, there is `compute_features_fn` method that you need to implement
 The output dataframe will be persisted in a [time-series Feature Store table]({{ template `generate_doc_link` (map (pair "cloud" .input_cloud) (pair "path" "machine-learning/feature-store/time-series.html")) }}).
 See the example modules' documentation for more information.
 * Python unit tests for feature computation modules in `tests/feature_engineering` folder.
-* Feature engineering notebook, `feature_engineering/notebooks/GenerateAndWriteFeatures.py`, that reads input dataframes, dynamically loads feature computation modules, executes their `compute_features_fn` method and writes the outputs to a Feature Store table (creating it if missing).
+* Feature engineering notebook, `feature_engineering/GenerateAndWriteFeatures.py`, that reads input dataframes, dynamically loads feature computation modules, executes their `compute_features_fn` method and writes the outputs to a Feature Store table (creating it if missing).
 * Training notebook that [trains]({{ template `generate_doc_link` (map (pair "cloud" .input_cloud) (pair "path" "machine-learning/feature-store/train-models-with-feature-store.html")) }} ) a regression model by creating a training dataset using the Feature Store client.
 * Model deployment and batch inference notebooks that deploy and use the trained model. 
 * An automated integration test is provided (in `.github/workflows/{{ .input_project_name }}-run-tests.yml`) that executes a multi task run on Databricks involving the feature engineering and model training notebooks.
@@ -200,7 +162,7 @@ Otherwise, e.g. if iterating on ML code for a new project, follow the steps belo
 You can iterate on the feature transform modules locally in your favorite IDE before running them on Databricks.  
 
 #### Running code on Databricks
-You can iterate on ML code by running the provided `feature_engineering/notebooks/GenerateAndWriteFeatures.py` notebook on Databricks using
+You can iterate on ML code by running the provided `feature_engineering/GenerateAndWriteFeatures.py` notebook on Databricks using
 [Repos]({{ template `generate_doc_link` (map (pair "cloud" .input_cloud) (pair "path" "repos/index.html")) }}). This notebook drives execution of
 the feature transforms code defined under ``features``. You can use multiple browser tabs to edit
 logic in `features` and run the feature engineering pipeline in the `GenerateAndWriteFeatures.py` notebook.
